@@ -13,13 +13,15 @@ class QuantEnginePro:
     @st.cache_data(ttl=60)
     def fetch_market_data(user_input, interval):
         try:
-            query = user_input.strip().upper()
-            search_list = [query]
-            if "." not in query:
-                search_list.insert(0, f"{query}.NS")
+            # Clean the input: "HDFC Bank" -> "HDFCBANK"
+            raw_query = user_input.strip().upper().replace(" ", "")
+            
+            # List of attempts: NSE first, then BSE, then raw
+            search_list = [f"{raw_query}.NS", f"{raw_query}.BO", raw_query]
             
             df = pd.DataFrame()
-            final_symbol = query
+            final_symbol = user_input.upper()
+            
             for ticker in search_list:
                 lookback = "60d" if interval in ["15m", "1h"] else "max"
                 df = yf.download(ticker, interval=interval, period=lookback, progress=False, auto_adjust=True)
@@ -27,16 +29,17 @@ class QuantEnginePro:
                     final_symbol = ticker
                     break
             
-            if df.empty: return None, query
+            if df.empty: return None, user_input
+            
+            # 2026 Header Fix
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = df.columns.get_level_values(0)
             
-            # --- CALCULATE ALL TECHNICALS ---
+            # Technical Calculations
             delta = df['Close'].diff()
             gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
             loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
             df['RSI'] = 100 - (100 / (1 + (gain / loss)))
-            
             tp = (df['High'] + df['Low'] + df['Close']) / 3
             df['VWAP'] = (tp * df['Volume']).cumsum() / df['Volume'].cumsum()
             df['EMA_20'] = df['Close'].ewm(span=20, adjust=False).mean()
@@ -133,14 +136,18 @@ if st.session_state.app_state == "welcome":
 
 # --- PAGE B: TERMINAL (MAIN APP) ---
 else:
-    st.sidebar.markdown("### 💎 Navigation")
-    if st.sidebar.button("🏠 Home Screen", use_container_width=True):
-        st.session_state.app_state = "welcome"
-        st.rerun()
+   st.sidebar.markdown("### 🔍 Smart Search")
+    # This captures the name and updates the session state
+    user_search = st.sidebar.text_input(
+        "Enter Company Name", 
+        value=st.session_state.active_ticker,
+        placeholder="e.g. Reliance, TCS, Tata Motors"
+    ).upper()
     
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### 🔍 Search Asset")
-    st.session_state.active_ticker = st.sidebar.text_input("Ticker Name", value=st.session_state.active_ticker).upper()
+    if user_search != st.session_state.active_ticker:
+        st.session_state.active_ticker = user_search
+        st.rerun()
+
     interval = st.sidebar.selectbox("Select Timeframe", ["15m", "1h", "1d"])
     
     # FETCH DATA
