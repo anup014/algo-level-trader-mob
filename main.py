@@ -136,9 +136,9 @@ if st.session_state.app_state == "welcome":
 
 # --- PAGE B: TERMINAL (MAIN APP) ---
 else:
-   st.sidebar.markdown("---")
+    st.sidebar.markdown("---")
     st.sidebar.markdown("### 🔍 Smart Search")
-    # Ensure this block is indented exactly like the lines above it
+    
     user_search = st.sidebar.text_input(
         "Enter Company Name", 
         value=st.session_state.active_ticker,
